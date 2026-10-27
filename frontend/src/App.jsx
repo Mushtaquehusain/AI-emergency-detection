@@ -1,20 +1,46 @@
+import { useState } from "react";
 import Disclaimer from "./components/Disclaimer.jsx";
-import LiveMonitor from "./components/LiveMonitor.jsx";
-import AlertDashboard from "./components/AlertDashboard.jsx";
+import CameraGrid from "./components/CameraGrid.jsx";
+import EnhancedDashboard from "./components/EnhancedDashboard.jsx";
 
 export default function App() {
+  const [monitoring, setMonitoring] = useState(false);
+  const [recentAlerts, setRecentAlerts] = useState([]);
+
+  function handleAlert(alert) {
+    setRecentAlerts((prev) => [alert, ...prev].slice(0, 6));
+  }
+
+  function toggleMonitoring() {
+    setMonitoring((prev) => !prev);
+  }
+
   return (
     <div className="app">
       <header>
-        <p className="eyebrow">College MVP · Stage 1.5</p>
+        <p className="eyebrow">College MVP · Multi-Camera Emergency Detection</p>
         <h1>AI-Based Smart Emergency Detection &amp; Response System</h1>
         <p className="sub">
-          Webcam or local video → JPEG frames → Express → FastAPI AI → MongoDB
+          Multi-camera monitoring → AI detection → Simulated emergency response
         </p>
+        <div className="global-controls">
+          <button
+            type="button"
+            onClick={toggleMonitoring}
+            className={monitoring ? "stop-btn" : "start-btn"}
+          >
+            {monitoring ? "⏹ Stop Monitoring" : "▶ Start Monitoring"}
+          </button>
+          {recentAlerts.length > 0 && (
+            <span className="alert-count">
+              {recentAlerts.length} recent alert{recentAlerts.length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       </header>
       <Disclaimer />
-      <LiveMonitor />
-      <AlertDashboard />
+      <CameraGrid onAlert={handleAlert} monitoring={monitoring} />
+      <EnhancedDashboard monitoring={monitoring} recentAlerts={recentAlerts} />
     </div>
   );
 }

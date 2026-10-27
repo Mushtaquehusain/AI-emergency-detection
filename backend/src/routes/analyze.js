@@ -1,5 +1,6 @@
 const express = require("express");
 const multer = require("multer");
+const mongoose = require("mongoose");
 const aiClient = require("../services/aiClient");
 const alertService = require("../services/alertService");
 
@@ -17,16 +18,30 @@ router.post("/analyze", upload.single("image"), async (req, res, next) => {
 
     const sessionId = req.body.sessionId || req.body.session_id;
     const source = req.body.source || "webcam";
+    const cameraId = req.body.cameraId;
+    const cameraLabel = req.body.cameraLabel;
+    
+    // Parse location if provided
+    let location = null;
+    if (req.body.locationLat && req.body.locationLng) {
+      location = {
+        lat: parseFloat(req.body.locationLat),
+        lng: parseFloat(req.body.locationLng),
+        label: req.body.locationLabel || "Unknown Location",
+      };
+    }
 
     const result = await aiClient.infer({
       buffer: req.file.buffer,
       filename: req.file.originalname || "frame.jpg",
       sessionId,
+      cameraId,
+      cameraLabel,
     });
 
-    // Process any confirmed alerts from AI service
+    // Process any confirmed alerts from AI service (only if DB is connected)
     const confirmedAlerts = [];
-    if (result.confirmed && result.confirmed.length > 0) {
+    if (result.confirmed && result.confirmed.length > 0 && mongoose.connection.readyState === 1) {
       for (const confirmed of result.confirmed) {
         try {
           const alertResult = await alertService.processConfirmedAlert({
@@ -36,6 +51,9 @@ router.post("/analyze", upload.single("image"), async (req, res, next) => {
             source,
             snapshotBuffer: req.file.buffer,
             scores: result.scores,
+            cameraId,
+            cameraLabel,
+            location,
           });
           confirmedAlerts.push(alertResult);
         } catch (alertErr) {
@@ -48,6 +66,7 @@ router.post("/analyze", upload.single("image"), async (req, res, next) => {
     res.json({
       ...result,
       confirmedAlerts,
+      dbConnected: mongoose.connection.readyState === 1,
     });
   } catch (err) {
     if (err.status) {

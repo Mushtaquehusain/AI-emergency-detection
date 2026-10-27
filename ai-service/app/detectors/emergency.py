@@ -2,11 +2,7 @@ import time
 from collections import defaultdict
 from typing import Optional
 import numpy as np
-
-try:
-    import cv2
-except ImportError:
-    cv2 = None
+import cv2
 
 from app.detectors.yolo import get_detector as get_yolo_detector
 from app.detectors.base import Detection
@@ -39,15 +35,16 @@ class EmergencyDetector:
         self._init_color_thresholds()
 
     def _init_color_thresholds(self):
-        """Initialize color thresholds for fire detection (orange/red/yellow)."""
-        # Fire typically appears in HSV: Orange (0-22, 100-255, 100-255)
-        self.fire_lower = np.array([0, 100, 100])
-        self.fire_upper = np.array([22, 255, 255])
+        """Initialize color thresholds for flame detection (bright orange/red/yellow)."""
+        # Fire typically appears with intense saturation and high value (brightness):
+        # Hue 0-20, Saturation 130-255, Value 180-255
+        self.fire_lower = np.array([0, 130, 180])
+        self.fire_upper = np.array([20, 255, 255])
 
     def _detect_fire_color(self, frame: np.ndarray) -> float:
         """
-        Heuristic fire detection using color analysis.
-        Returns confidence score (0-1) based on orange/red pixel ratio.
+        Heuristic fire detection using flame color/intensity analysis.
+        Returns confidence score (0-1) based on bright flame pixel ratio.
         """
         try:
             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -56,8 +53,8 @@ class EmergencyDetector:
             total_pixels = frame.shape[0] * frame.shape[1]
             ratio = fire_pixels / total_pixels
             
-            # Scale ratio to confidence (fire typically covers significant area)
-            confidence = min(ratio * 50, 1.0)  # Adjust multiplier based on testing
+            # Require significant bright flame presence to scale confidence
+            confidence = min(ratio * 15, 1.0)
             return confidence
         except Exception:
             return 0.0
@@ -66,8 +63,8 @@ class EmergencyDetector:
         """
         Heuristic accident detection based on vehicle positioning and overlap.
         
-        PROTOTYPE: Uses IoU (Intersection over Union) between vehicles as a proxy signal.
-        This is NOT scientifically equivalent to crash understanding.
+        HEURISTIC FALLBACK: Uses IoU (Intersection over Union) between vehicles as a collision proxy.
+        This is a proxy signal and not equivalent to full crash impact analysis.
         """
         try:
             # Filter for vehicle-related COCO classes
@@ -85,17 +82,17 @@ class EmergencyDetector:
                     max_iou = max(max_iou, iou)
             
             # High overlap suggests potential collision
-            confidence = min(max_iou * 2, 1.0)  # Scale based on testing
+            confidence = min(max_iou * 2.5, 1.0)
             return confidence
         except Exception:
             return 0.0
 
     def _detect_violence_heuristic(self, detections: list[Detection], frame: np.ndarray) -> float:
         """
-        Heuristic violence detection based on person clustering and motion.
+        Heuristic violence detection based on person clustering, bounding box overlap (IoU), and proximity.
         
-        PROTOTYPE: Uses person proximity as a proxy signal.
-        Real violence detection requires temporal models and action recognition.
+        HEURISTIC FALLBACK: Uses person proximity and bounding box overlap as proxy signals.
+        Real violence detection in production requires a temporal action recognition model.
         """
         try:
             # Filter for person detections
@@ -104,23 +101,26 @@ class EmergencyDetector:
             if len(persons) < 2:
                 return 0.0
             
-            # Calculate proximity between persons
+            # Calculate proximity and overlap between all detected persons
             min_distance = float('inf')
+            max_iou = 0.0
             for i, p1 in enumerate(persons):
                 for p2 in persons[i+1:]:
                     dist = self._calculate_center_distance(p1.box, p2.box)
                     min_distance = min(min_distance, dist)
+                    iou = self._calculate_iou(p1.box, p2.box)
+                    max_iou = max(max_iou, iou)
             
-            # Very close proximity might indicate confrontation
-            # Distance is normalized by frame size
             frame_diagonal = np.sqrt(frame.shape[0]**2 + frame.shape[1]**2)
             normalized_dist = min_distance / frame_diagonal
             
-            # Closer = higher confidence (but not too close to avoid false positives)
-            if normalized_dist < 0.05:  # Very close
-                confidence = 0.8
-            elif normalized_dist < 0.1:  # Close
-                confidence = 0.5
+            # Physical overlap (grappling / struggle proxy) or close confrontation proximity
+            if max_iou >= 0.15:
+                confidence = min(0.70 + max_iou * 0.5, 1.0)
+            elif normalized_dist < 0.20:
+                confidence = 0.70
+            elif normalized_dist < 0.35:
+                confidence = 0.55
             else:
                 confidence = 0.0
             

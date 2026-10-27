@@ -60,8 +60,17 @@ async function processConfirmedAlert({
   source,
   snapshotBuffer,
   scores,
+  cameraId,
+  cameraLabel,
+  location,
 }) {
   try {
+    // Check if database is available
+    const mongoose = require("mongoose");
+    if (mongoose.connection.readyState !== 1) {
+      throw new Error("Database not connected");
+    }
+
     // Save snapshot
     let snapshotPath = null;
     if (snapshotBuffer) {
@@ -81,6 +90,9 @@ async function processConfirmedAlert({
       sessionId,
       snapshotPath,
       scores,
+      cameraId,
+      cameraLabel,
+      location,
       disclaimer:
         "College prototype. Not a real municipal emergency system. Response is SIMULATED.",
     });
@@ -102,11 +114,12 @@ async function processConfirmedAlert({
 /**
  * Get recent alerts
  */
-async function getRecentAlerts(limit = 50) {
+async function getRecentAlerts(limit = 6) {
   try {
+    const safeLimit = Math.min(parseInt(limit, 10) || 6, 6);
     const alerts = await Alert.find()
       .sort({ createdAt: -1 })
-      .limit(limit)
+      .limit(safeLimit)
       .lean();
     return alerts;
   } catch (err) {

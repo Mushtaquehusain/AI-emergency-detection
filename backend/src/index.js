@@ -25,19 +25,23 @@ app.use((err, req, res, next) => {
 });
 
 async function start() {
-  try {
-    await mongoose.connect(config.mongoUri, {
-      serverSelectionTimeoutMS: 5000,
-    });
-    console.log("MongoDB connected");
-  } catch (err) {
-    console.error("MongoDB connection failed:", err.message);
-    process.exit(1);
-  }
-
   // Ensure snapshot directory exists
   await alertService.ensureSnapshotDir();
   console.log("Snapshot directory ready");
+
+  // Connect to MongoDB if available
+  if (config.mongoUri) {
+    try {
+      await mongoose.connect(config.mongoUri, {
+        serverSelectionTimeoutMS: 5000,
+      });
+      console.log("MongoDB connected");
+    } catch (err) {
+      console.warn("MongoDB connection failed, running without database:", err.message);
+    }
+  } else {
+    console.warn("No MONGO_URI configured, running without database persistence");
+  }
 
   app.listen(config.port, () => {
     console.log(`Express listening on http://localhost:${config.port}`);

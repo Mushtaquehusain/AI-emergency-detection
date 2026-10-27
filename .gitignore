@@ -1,0 +1,4 @@
+frontend/.env
+backend/data/snapshots/
+**/__pycache__/
+*.pyc

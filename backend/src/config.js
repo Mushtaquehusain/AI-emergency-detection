@@ -7,7 +7,7 @@ const config = {
 };
 
 if (!config.mongoUri) {
-  throw new Error("MONGO_URI is not set. Add it to backend/.env");
+  console.warn("MONGO_URI is not set. Running without database persistence.");
 }
 
 module.exports = config;

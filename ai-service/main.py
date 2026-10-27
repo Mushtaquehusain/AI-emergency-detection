@@ -61,6 +61,8 @@ async def infer(
     image: UploadFile | None = File(default=None),
     file: UploadFile | None = File(default=None),
     session_id: str | None = Form(default=None),
+    camera_id: str | None = Form(default=None),
+    camera_label: str | None = Form(default=None),
 ):
     upload = image or file
     if upload is None:
@@ -96,6 +98,8 @@ async def infer(
         "confirmed": confirmed,
         "consecutive_counts": consecutive_counts,
         "session_id": session_id,
+        "camera_id": camera_id,
+        "camera_label": camera_label,
         "inference_ms": round(inference_ms, 1),
         "model": detector.model_name,
     }
